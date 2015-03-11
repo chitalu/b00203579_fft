@@ -8,49 +8,64 @@
 // fft in the west!
 #include "fftw3.h"
 
-#define REAL_PART 0
-#define IMAGINARY_PART 1
-
-#define Imag(x_) x_[IMAGINARY_PART]
-#define Real(x_) x_[REAL_PART]
+#include "base.h"
 
 #define N (1024)
 
-const double two_pi = M_PI * 2.0;
 const int freq = 440;
 const double t = 0.0001;
-
 const double w = two_pi * freq;
 
 int main(int argc, char const *argv[]) {
   printf("%s\n", "hello fft!");
 
-  // time domain decomposed signal impulses
-  fftw_complex *x = (fftw_complex *)malloc(sizeof(fftw_complex) * N);
-  // frequency domain amplitudes
-  fftw_complex *X = (fftw_complex *)malloc(sizeof(fftw_complex) * N);
-  ;
+  fftw_complex *x = NULL, *X = NULL;
 
-  for (int n = 0; n < N; ++n) {
-    Real(x[n]) = sin(w * (double)n * t);
-    Imag(x[n]) = 0;
-
-    Real(X[n]) = 0;
-    Imag(X[n]) = 0;
+  START_PROFILING(allocate_mem) {
+    x = (fftw_complex *)malloc(sizeof(fftw_complex) * N);
+    X = (fftw_complex *)malloc(sizeof(fftw_complex) * N);
   }
+  STOP_PROFILING()
+
+  START_PROFILING(initialise_mem) {
+    for (int n = 0; n < N; ++n) {
+	  // time domain decomposed signal impulses
+      Real(x[n]) = sin(w * (double)n * t);
+      Imag(x[n]) = 0;
+
+	  // frequency domain amplitudes
+      Real(X[n]) = 0;
+      Imag(X[n]) = 0;
+    }
+  }
+  STOP_PROFILING();
 
   fftw_plan forward_fft_plan, inverse_fft_plan;
 
-  forward_fft_plan = fftw_plan_dft_1d(N, x, X, FFTW_FORWARD, FFTW_ESTIMATE);
+  START_PROFILING(complex_fft) {
+    forward_fft_plan = fftw_plan_dft_1d(N, x, X, FFTW_FORWARD, FFTW_ESTIMATE);
+    fftw_execute(forward_fft_plan);
+  }
+  STOP_PROFILING();
 
-  fftw_execute(forward_fft_plan);
+  START_PROFILING(complex_ifft) {
+    inverse_fft_plan = fftw_plan_dft_1d(N, X, x, FFTW_BACKWARD, FFTW_ESTIMATE);
+    fftw_execute(forward_fft_plan);
+  }
+  STOP_PROFILING();
 
-  inverse_fft_plan = fftw_plan_dft_1d(N, X, x, FFTW_BACKWARD, FFTW_ESTIMATE);
+  START_PROFILING(deallocate_mem) {
+    fftw_destroy_plan(forward_fft_plan);
+    fftw_destroy_plan(inverse_fft_plan);
+    free(x);
+    x = NULL;
+    free(X);
+    X = NULL;
+  }
+  STOP_PROFILING();
 
-  fftw_execute(forward_fft_plan);
-
-  fftw_destroy_plan(forward_fft_plan);
-  fftw_destroy_plan(inverse_fft_plan);
-
+  for (ptime_iter_t i = g_tstamps.cbegin(); i != g_tstamps.cend(); ++i) {
+    printf("task: %s\ntime: %f microseconds\n\n", i->first.c_str(), i->second);
+  }
   return 0;
 }

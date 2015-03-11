@@ -1,41 +1,73 @@
 #ifndef __BASE_H__
 #define __BASE_H__
 
+#include <string>
+#include <map>
+#include <cstdint>
+#include <Windows.h>
 
-struct cpu_timer_t {
-  typedef std::chrono::time_point<std::chrono::system_clock,
-                                  std::chrono::system_clock::duration>
-      cpu_prof_time_t;
+std::map<std::string, double> g_tstamps;
+typedef std::map<std::string, double>::const_iterator ptime_iter_t;
 
-  cpu_timer_t(std::string prof_instance) : m_prof_instance(prof_instance) {
-    m_start_time = std::chrono::high_resolution_clock::now();
-  }
-
-  ~cpu_timer_t(void) {
-    m_end_time = std::chrono::high_resolution_clock::now();
-
-    profile_time_t elapsed =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(
-            m_end_time - m_start_time).count();
-    g_profiling_data[m_prof_instance].push_back(elapsed);
-
-    if (g_profiling_data[m_prof_instance].size() > g_profiling_samples) {
-      g_profiling_data[m_prof_instance].pop_front();
-    }
+struct cprofile_t {
+  cprofile_t(const char *desc_in) : desc(desc_in) { start_counter(); }
+  ~cprofile_t() {
+    // store time results when object leaves macrro scope
+    g_tstamps.insert({desc, get_counter()});
   }
 
 private:
-  std::string m_prof_instance;
-  cpu_prof_time_t m_start_time, m_end_time;
-};
+  double m_PC_freq = 0.0;
+  __int64 m_start_time = 0;
 
-#define PROFILE_()                                                    		   \
-  std::shared_ptr<cpu_timer_t> profiler_;                                 \
-  if (g_profiling_enabled) {                                                   \
-    std::shared_ptr<cpu_timer_t> p_inst =                                 \
-        std::shared_ptr<cpu_timer_t>(new cpu_timer_t(__FUNCTION__)); \
-    profiler_ = p_inst;                                                        \
+  // records the number of ticks the performance counter has
+  // in the start_time variable
+  void start_counter(void) {
+    LARGE_INTEGER li;
+    // Retrieves the frequency of the performance counter. The frequency
+    // of the performance counter is fixed at system boot and is consistent
+    // across all processors. Therefore, the frequency need only be queried
+    // upon application initialization, and the result can be cached.
+    //**though the value is fixed i still keep querying, it works the same!
+    if (!QueryPerformanceFrequency(&li))
+      printf("QueryPerformanceFrequency failed!\n");
+
+    m_PC_freq = double(li.QuadPart) / 1000000.0;
+
+    QueryPerformanceCounter(&li);
+    m_start_time = li.QuadPart;
   }
 
+  // returns the number of milliseconds since start_counter() was
+  // last called as a double, so if get_counter() returns 0.001 then
+  // it has been about 1 microsecond since start_counter() was called
+  double get_counter(void) {
+    LARGE_INTEGER li;
+    // On a multiprocessor computer, it should not matter which processor
+    // is called. However, you can get different results on different processors
+    // due to bugs in the basic input/output system (BIOS) or the hardware
+    // abstraction layer (HAL).
+    QueryPerformanceCounter(&li);
+    return double(li.QuadPart - m_start_time) / m_PC_freq;
+  }
+
+  std::string desc;
+};
+
+// start profiling codeblock
+#define START_PROFILING(name_)                                                 \
+  {                                                                            \
+    cprofile_t(#name_);
+
+// end profiling codeblock
+#define STOP_PROFILING() }
+
+#define REAL_PART 0
+#define IMAGINARY_PART 1
+
+#define Imag(arg_) arg_[IMAGINARY_PART]
+#define Real(arg_) arg_[REAL_PART]
+
+const double two_pi = M_PI * 2.0;
 
 #endif
