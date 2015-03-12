@@ -22,8 +22,8 @@ int main(int argc, char const *argv[]) {
   fftw_complex *x = NULL, *X = NULL;
 
   START_PROFILING(allocate_mem) {
-    x = (fftw_complex *)malloc(sizeof(fftw_complex) * N);
-    X = (fftw_complex *)malloc(sizeof(fftw_complex) * N);
+    x = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * N);
+    X = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * N);
   }
   STOP_PROFILING()
 
@@ -57,9 +57,9 @@ int main(int argc, char const *argv[]) {
   START_PROFILING(deallocate_mem) {
     fftw_destroy_plan(forward_fft_plan);
     fftw_destroy_plan(inverse_fft_plan);
-    free(x);
+    fftw_free(x);
     x = NULL;
-    free(X);
+    fftw_free(X);
     X = NULL;
   }
   STOP_PROFILING();
