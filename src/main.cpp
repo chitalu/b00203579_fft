@@ -30,12 +30,12 @@ int main(int argc, char const *argv[]) {
   START_PROFILING(initialise_mem) {
     for (int n = 0; n < N; ++n) {
 	  // time domain decomposed signal impulses
-      Real(x[n]) = sin(w * (double)n * t);
-      Imag(x[n]) = 0;
+      Re(x[n]) = sin(w * (double)n * t);
+      Im(x[n]) = 0;
 
 	  // frequency domain amplitudes
-      Real(X[n]) = 0;
-      Imag(X[n]) = 0;
+      Re(X[n]) = 0;
+      Im(X[n]) = 0;
     }
   }
   STOP_PROFILING();
