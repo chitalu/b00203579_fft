@@ -10,15 +10,17 @@ std::map<std::string, double> g_tstamps;
 typedef std::map<std::string, double>::const_iterator ptime_iter_t;
 
 struct cprofile_t {
-  cprofile_t(const char *desc_in) : desc(desc_in) { start_counter(); }
+  cprofile_t(const char *desc_in) : desc(desc_in), m_PC_freq(0.0), 
+	  m_start_time(0) { start_counter(); }
   ~cprofile_t() {
     // store time results when object leaves macrro scope
-    g_tstamps.insert({desc, get_counter()});
+    g_tstamps.insert(std::make_pair(desc, get_counter()));
   }
 
 private:
-  double m_PC_freq = 0.0;
-  __int64 m_start_time = 0;
+  std::string desc;
+  double m_PC_freq;
+  __int64 m_start_time;
 
   // records the number of ticks the performance counter has
   // in the start_time variable
@@ -50,8 +52,6 @@ private:
     QueryPerformanceCounter(&li);
     return double(li.QuadPart - m_start_time) / m_PC_freq;
   }
-
-  std::string desc;
 };
 
 // start profiling codeblock
