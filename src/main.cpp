@@ -1,6 +1,3 @@
-#define _USE_MATH_DEFINES
-#include <cmath>
-
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
@@ -14,20 +11,20 @@
 
 const int freq = 440;
 const double t = 0.0001;
-const double w = two_pi * freq;
+const double w = M_2_PI * freq;
 
 int main(int argc, char const *argv[]) {
   printf("%s\n", "hello fft!");
-
+  realfft_op_1024();
   fftw_complex *x = NULL, *X = NULL;
 
-  START_PROFILING(allocate_mem) {
+  START_PROFILING("allocate_mem") {
     x = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * N);
     X = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * N);
   }
   STOP_PROFILING()
 
-  START_PROFILING(initialise_mem) {
+  START_PROFILING("initialise_mem") {
     for (int n = 0; n < N; ++n) {
 	  // time domain decomposed signal impulses
       Re(x[n]) = sin(w * (double)n * t);
@@ -42,19 +39,19 @@ int main(int argc, char const *argv[]) {
 
   fftw_plan forward_fft_plan, inverse_fft_plan;
 
-  START_PROFILING(complex_fft) {
+  START_PROFILING("complex_fft") {
     forward_fft_plan = fftw_plan_dft_1d(N, x, X, FFTW_FORWARD, FFTW_ESTIMATE);
     fftw_execute(forward_fft_plan);
   }
   STOP_PROFILING();
 
-  START_PROFILING(complex_ifft) {
+  START_PROFILING("complex_ifft") {
     inverse_fft_plan = fftw_plan_dft_1d(N, X, x, FFTW_BACKWARD, FFTW_ESTIMATE);
     fftw_execute(forward_fft_plan);
   }
   STOP_PROFILING();
 
-  START_PROFILING(deallocate_mem) {
+  START_PROFILING("deallocate_mem") {
     fftw_destroy_plan(forward_fft_plan);
     fftw_destroy_plan(inverse_fft_plan);
     fftw_free(x);

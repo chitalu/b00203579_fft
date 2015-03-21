@@ -1,17 +1,22 @@
 #ifndef __BASE_H__
 #define __BASE_H__
 
+#define _USE_MATH_DEFINES
+#include <math.h>
+
 #include <string>
 #include <map>
 #include <cstdint>
 #include <Windows.h>
 
-std::map<std::string, double> g_tstamps;
+extern std::map<std::string, double> g_tstamps;
 typedef std::map<std::string, double>::const_iterator ptime_iter_t;
 
 struct cprofile_t {
-  cprofile_t(const char *desc_in) : desc(desc_in), m_PC_freq(0.0), 
-	  m_start_time(0) { start_counter(); }
+  cprofile_t(const char *desc_in)
+      : desc(desc_in), m_PC_freq(0.0), m_start_time(0) {
+    start_counter();
+  }
   ~cprofile_t() {
     // store time results when object leaves macrro scope
     g_tstamps.insert(std::make_pair(desc, get_counter()));
@@ -57,7 +62,7 @@ private:
 // start profiling codeblock
 #define START_PROFILING(name_)                                                 \
   {                                                                            \
-    cprofile_t(#name_);
+    cprofile_t(name_);
 
 // end profiling codeblock
 #define STOP_PROFILING() }
@@ -65,9 +70,36 @@ private:
 #define REAL_PART 0
 #define IMAGINARY_PART 1
 
-#define Imag(arg_) arg_[IMAGINARY_PART]
-#define Real(arg_) arg_[REAL_PART]
+#define Im(arg_) arg_[IMAGINARY_PART]
+#define Re(arg_) arg_[REAL_PART]
 
-const double two_pi = M_PI * 2.0;
+#define DECL_FUNC_(dtype, dsize) extern "C" void dtype##fft_op_##dsize(void)
+
+#define DECL_FUNCS_(dsize)                                                     \
+  DECL_FUNC_(real, dsize);                                                     \
+  DECL_FUNC_(complex, dsize)
+
+// fft declarations
+DECL_FUNCS_(1024); // 2^10
+DECL_FUNCS_(1023); // 2^10 - 1
+
+DECL_FUNCS_(65536); // 2^16
+DECL_FUNCS_(65535); // 2^16 - 1
+
+DECL_FUNCS_(4294967296); // 2^32
+DECL_FUNCS_(4294967295); // 2^32 -1
+
+#define DEF_FUNC_(dtype, dsize) void dtype##fft_op_##dsize(void)
+
+#define DEF_FUNCS_(dsize)                                \
+  DEF_FUNC_(real, dsize) \
+{                                                  \
+    rfft(dsize);                                                          \
+  \
+}                                                                         \
+  DEF_FUNC_(complex, dsize) \
+{                                               \
+    cfft(dsize);                                                          \
+  }
 
 #endif
