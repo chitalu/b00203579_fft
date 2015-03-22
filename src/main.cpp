@@ -7,62 +7,65 @@
 
 #include "base.h"
 
-#define N (1024)
+std::map<std::string, fft_func_t> g_fft_funcs;
 
-const int freq = 440;
-const double t = 0.0001;
-const double w = M_2_PI * freq;
+void init(void) {
+#define REG_FUNC(arg)                                                          \
+  g_fft_funcs["real_fft_op_" #arg] = real_fft_op_##arg;                        \
+  g_fft_funcs["complex_fft_op_" #arg] = complex_fft_op_##arg;
+
+  REG_FUNC(1023);
+  REG_FUNC(1024);
+
+  /*REG_FUNC(65536);
+  REG_FUNC(65535);
+
+  REG_FUNC(4294967296);
+  REG_FUNC(4294967295);*/
+}
 
 int main(int argc, char const *argv[]) {
-  printf("%s\n", "hello fft!");
-  realfft_op_1024();
-  fftw_complex *x = NULL, *X = NULL;
+  printf("%s\n\n", "hello fftw!");
 
-  START_PROFILING("allocate_mem") {
-    x = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * N);
-    X = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * N);
+  printf("runs per-analysis func: %d\n\n", MAX_TIME_SAMPLES);
+
+  //initialise function pointer vars
+  init();
+
+  //loop for the analysis function
+  for (std::map<std::string, fft_func_t>::const_iterator f_iter =
+           g_fft_funcs.begin();
+       f_iter != g_fft_funcs.cend(); ++f_iter) {
+
+    //print the name of the fft function about to run
+    printf("run: %s\n", f_iter->first.c_str());
+
+	//to get a good estimate call fft analysis function multiple times
+	//to determine an average value
+	int n = 0;
+	while(n++ < MAX_TIME_SAMPLES)
+	{
+		//call the fft function we want to analyse
+		f_iter->second();
+	}
   }
-  STOP_PROFILING()
 
-  START_PROFILING("initialise_mem") {
-    for (int n = 0; n < N; ++n) {
-	  // time domain decomposed signal impulses
-      Re(x[n]) = sin(w * (double)n * t);
-      Im(x[n]) = 0;
-
-	  // frequency domain amplitudes
-      Re(X[n]) = 0;
-      Im(X[n]) = 0;
+  struct {
+    double operator()(const std::list<double> &arg) {
+      double out = 0;
+      for (std::list<double>::const_iterator i = arg.begin(); i != arg.end();
+           ++i) {
+        out += *i;
+      }
+      out /= arg.size();
+      return out;
     }
-  }
-  STOP_PROFILING();
+  } mean_reduce;
 
-  fftw_plan forward_fft_plan, inverse_fft_plan;
-
-  START_PROFILING("complex_fft") {
-    forward_fft_plan = fftw_plan_dft_1d(N, x, X, FFTW_FORWARD, FFTW_ESTIMATE);
-    fftw_execute(forward_fft_plan);
-  }
-  STOP_PROFILING();
-
-  START_PROFILING("complex_ifft") {
-    inverse_fft_plan = fftw_plan_dft_1d(N, X, x, FFTW_BACKWARD, FFTW_ESTIMATE);
-    fftw_execute(forward_fft_plan);
-  }
-  STOP_PROFILING();
-
-  START_PROFILING("deallocate_mem") {
-    fftw_destroy_plan(forward_fft_plan);
-    fftw_destroy_plan(inverse_fft_plan);
-    fftw_free(x);
-    x = NULL;
-    fftw_free(X);
-    X = NULL;
-  }
-  STOP_PROFILING();
-
+  printf("\nelapsed times:\n");
   for (ptime_iter_t i = g_tstamps.cbegin(); i != g_tstamps.cend(); ++i) {
-    printf("task: %s\ntime: %f microseconds\n\n", i->first.c_str(), i->second);
+    printf("task: %s\ntime: %f microseconds\n\n", i->first.c_str(),
+           mean_reduce(i->second));
   }
   return 0;
 }
