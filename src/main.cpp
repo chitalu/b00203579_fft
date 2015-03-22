@@ -1,19 +1,14 @@
 #include <cstdio>
-#include <cstdlib>
-#include <vector>
-
-// fft in the west!
-#include "fftw3.h"
 
 #include "base.h"
 
-std::map<std::string, fft_func_t> g_fft_funcs;
-
-void init(void) {
 #define REG_FUNC(arg)                                                          \
   g_fft_funcs["real_fft_op_" #arg] = real_fft_op_##arg;                        \
   g_fft_funcs["complex_fft_op_" #arg] = complex_fft_op_##arg;
 
+std::map<std::string, fft_func_t> g_fft_funcs;
+
+void init(void) {
   REG_FUNC(1023);
   REG_FUNC(1024);
 
@@ -29,25 +24,24 @@ int main(int argc, char const *argv[]) {
 
   printf("runs per-analysis func: %d\n\n", MAX_TIME_SAMPLES);
 
-  //initialise function pointer vars
+  // initialise function pointer vars
   init();
 
-  //loop for the analysis function
+  // loop for the analysis function
   for (std::map<std::string, fft_func_t>::const_iterator f_iter =
            g_fft_funcs.begin();
        f_iter != g_fft_funcs.cend(); ++f_iter) {
 
-    //print the name of the fft function about to run
+    // print the name of the fft function about to run
     printf("run: %s\n", f_iter->first.c_str());
 
-	//to get a good estimate call fft analysis function multiple times
-	//to determine an average value
-	int n = 0;
-	while(n++ < MAX_TIME_SAMPLES)
-	{
-		//call the fft function we want to analyse
-		f_iter->second();
-	}
+    // to get a good estimate call fft analysis function multiple times
+    // to determine an average value
+    int n = 0;
+    while (n++ < MAX_TIME_SAMPLES) {
+      // call the fft function we want to analyse
+      f_iter->second();
+    }
   }
 
   struct {

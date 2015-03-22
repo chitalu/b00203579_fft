@@ -2,6 +2,7 @@
 #define __BASE_H__
 
 #define _CRT_SECURE_NO_WARNINGS
+#include <Windows.h>
 
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -9,8 +10,6 @@
 #include <string>
 #include <map>
 #include <list>
-#include <cstdint>
-#include <Windows.h>
 
 typedef void (*fft_func_t)(void);
 extern std::map<std::string, fft_func_t> g_fft_funcs;
@@ -21,18 +20,17 @@ typedef std::map<std::string, std::list<double>>::const_iterator ptime_iter_t;
 #define MAX_TIME_SAMPLES (128)
 
 struct cprofile_t {
-	cprofile_t(const std::string &desc_in)
+  cprofile_t(const std::string &desc_in)
       : desc(desc_in), m_PC_freq(0.0), m_start_time(0) {
     start_counter();
   }
   ~cprofile_t() {
     // store time results when object leaves macrro scope
-	g_tstamps[desc].push_back(get_counter());
+    g_tstamps[desc].push_back(get_counter());
 
-	if (g_tstamps[desc].size() >= MAX_TIME_SAMPLES)
-	{
-		g_tstamps[desc].pop_front();
-	}
+    if (g_tstamps[desc].size() >= MAX_TIME_SAMPLES) {
+      g_tstamps[desc].pop_front();
+    }
   }
 
 private:
@@ -82,13 +80,8 @@ private:
 
 #define REAL_PART 0
 #define IMAGINARY_PART 1
-
 #define Im(arg_) arg_[IMAGINARY_PART]
 #define Re(arg_) arg_[REAL_PART]
-
-#define TO_STR_IMPL(x) #x
-#define TO_STR__(x) TO_STR_IMPL(x)
-#define TO_STR_(s) TO_STR__(s)
 
 #define DECL_FUNC_(dtype, dsize) extern "C" void dtype##_fft_op_##dsize(void);
 
@@ -96,7 +89,8 @@ private:
   DECL_FUNC_(real, dsize);                                                     \
   DECL_FUNC_(complex, dsize)
 
-// fft declarations
+// fft analysis function declarations
+// each with a different number of samples to be tested
 DECL_FUNCS_(1024); // 2^10
 DECL_FUNCS_(1023); // 2^10 - 1
 
@@ -109,32 +103,7 @@ DECL_FUNCS_(4294967295); // 2^32 -1
 #define DEF_FUNC_(dtype, dsize) void dtype##_fft_op_##dsize(void)
 
 #define DEF_FUNCS_(dsize)                                                      \
-  DEF_FUNC_(real, dsize) \
-{                                                  \
-    \
-static bool init = false;                                                      \
-    \
-if(!init) {                                                                    \
-      g_fft_funcs[TO_STR_(real_fft_op_##dsize)] = real_fft_op_##dsize;         \
-      init = true;                                                             \
-    \
-}                                                                       \
-    \
-rfft(dsize);                                                                   \
-  \
-\
-}                                                                      \
-  \
-DEF_FUNC_(complex, dsize) \
-{                                                 \
-    \
-static bool init = false;                                                      \
-    if (!init) {                                                               \
-      g_fft_funcs[TO_STR_(complex_fft_op_##dsize)] = complex_fft_op_##dsize;         \
-      init = true;                                                             \
-    }                                                                          \
-    cfft(dsize);                                                               \
-  \
-}
+  DEF_FUNC_(real, dsize) { rfft(dsize); }                                      \
+  DEF_FUNC_(complex, dsize) { cfft(dsize); }
 
 #endif
