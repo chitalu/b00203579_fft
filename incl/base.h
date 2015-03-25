@@ -1,7 +1,6 @@
 #ifndef __BASE_H__
 #define __BASE_H__
 
-#define _CRT_SECURE_NO_WARNINGS
 #include <Windows.h>
 
 #define _USE_MATH_DEFINES
@@ -17,7 +16,7 @@ extern std::map<std::string, fft_func_t> g_fft_funcs;
 extern std::map<std::string, std::list<double>> g_tstamps;
 typedef std::map<std::string, std::list<double>>::const_iterator ptime_iter_t;
 
-#define MAX_TIME_SAMPLES (128)
+#define MAX_FUNC_RUNS (128)
 
 struct cprofile_t {
   cprofile_t(const std::string &desc_in)
@@ -28,7 +27,7 @@ struct cprofile_t {
     // store time results when object leaves macrro scope
     g_tstamps[desc].push_back(get_counter());
 
-    if (g_tstamps[desc].size() >= MAX_TIME_SAMPLES) {
+    if (g_tstamps[desc].size() >= MAX_FUNC_RUNS) {
       g_tstamps[desc].pop_front();
     }
   }
@@ -105,5 +104,14 @@ DECL_FUNCS_(4294967295); // 2^32 -1
 #define DEF_FUNCS_(dsize)                                                      \
   DEF_FUNC_(real, dsize) { rfft(dsize); }                                      \
   DEF_FUNC_(complex, dsize) { cfft(dsize); }
+
+//generate value between 0.0f and 1.0f
+extern "C" float rand_norm(void);
+
+//generate value between 0.0f and "hi"
+extern "C" float rand_1(float hi);
+
+//generate value between "lo" and "hi"
+extern "C" float rand_2(float lo, float hi);
 
 #endif

@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <ctime>
 
 #include "base.h"
 
@@ -8,24 +9,42 @@
 
 std::map<std::string, fft_func_t> g_fft_funcs;
 
-void init(void) {
-  REG_FUNC(1023);
-  REG_FUNC(1024);
+//generate value between 0.0f and 1.0f
+float rand_norm(void)
+{
+	return static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+}
+
+//generate value between 0.0f and "hi"
+float rand_1(float hi)
+{
+	return static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / hi));
+}
+
+//generate value between "lo" and "hi"
+float rand_2(float lo, float hi)
+{
+	return lo + static_cast <float> (rand()) / ( static_cast <float> (RAND_MAX/(hi-lo)));
+}
+
+int main(int argc, char const *argv[]) {
+  printf("%s\n\n", "hello fftw!");
+
+  printf("runs per-analysis func: %d\n\n", MAX_FUNC_RUNS);
+	
+  unsigned program_seed = static_cast <unsigned> (time(NULL));
+  srand (program_seed);
+  printf("using seed: %u\n\n", program_seed);
+
+  // initialise function pointer vars
+	REG_FUNC(1023);
+	REG_FUNC(1024);
 
   /*REG_FUNC(65536);
   REG_FUNC(65535);
 
   REG_FUNC(4294967296);
   REG_FUNC(4294967295);*/
-}
-
-int main(int argc, char const *argv[]) {
-  printf("%s\n\n", "hello fftw!");
-
-  printf("runs per-analysis func: %d\n\n", MAX_TIME_SAMPLES);
-
-  // initialise function pointer vars
-  init();
 
   // loop for the analysis function
   for (std::map<std::string, fft_func_t>::const_iterator f_iter =
@@ -38,13 +57,14 @@ int main(int argc, char const *argv[]) {
     // to get a good estimate call fft analysis function multiple times
     // to determine an average value
     int n = 0;
-    while (n++ < MAX_TIME_SAMPLES) {
+    while (n++ < MAX_FUNC_RUNS) {
       // call the fft function we want to analyse
       f_iter->second();
     }
   }
 
   struct {
+	  //reduce list elements by summation
     double operator()(const std::list<double> &arg) {
       double out = 0;
       for (std::list<double>::const_iterator i = arg.begin(); i != arg.end();
