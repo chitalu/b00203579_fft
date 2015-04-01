@@ -9,7 +9,7 @@
 
 std::map<std::string, std::list<double>> g_tstamps;
 
-std::string gen_name(const std::string &task, const std::string &dtype, const std::size_t &N)
+inline std::string gen_name(const std::string &task, const std::string &dtype, const std::size_t &N)
 {
 	char buf[64];
 	return std::string(_itoa(N, buf, 10)) + "-" + dtype + "-" + task;
@@ -18,14 +18,46 @@ std::string gen_name(const std::string &task, const std::string &dtype, const st
 #define PNAME(task_name_ )\
 	gen_name(task_name_, __FUNCTION__, N)
 
+// Note to self:
+// You must create the plan before initializing the input, because FFTW_MEASURE 
+// overwrites the in/out arrays. (Technically, FFTW_ESTIMATE does not touch your 
+// arrays, but you should always create plans first just to be sure.) 
+// http://www.fftw.org/doc/Complex-One_002dDimensional-DFTs.html
+
 void rfft(const std::size_t &N)
 {
+	fftw_plan forward = NULL, inverse = NULL;
+
 	double *x = NULL;
 	fftw_complex *X = NULL;
 	 
-	x = (double *)fftw_malloc(sizeof(double) * N);
-	X = (fftw_complex *)fftw_malloc(sizeof(fftw_complex)* N);
+	x = fftw_alloc_real(N);
+	X = fftw_alloc_complex(N);
 
+	// create plans first and profile how long each takes
+	// since FFTW_MEASURE can cause the process to take a 
+	// while for best estimates
+	START_PROFILING(PNAME("real_fplan_crte")); 
+	{
+		forward = fftw_plan_dft_r2c_1d(N, x, X, FFTW_MEASURE);
+	}
+	STOP_PROFILING();
+
+	ASSERT_TRUE(forward != NULL, "failed to create forward real plan");
+
+	STORE_AMF_OP_STATS(forward);
+
+	START_PROFILING(PNAME("real_iplan_crte")); 
+	{
+		inverse = fftw_plan_dft_c2r_1d(N, X, x, FFTW_MEASURE);
+	}
+	STOP_PROFILING();
+
+	ASSERT_TRUE(inverse != NULL, "failed to create inverse real plan");
+
+	STORE_AMF_OP_STATS(inverse);
+
+	//then initialise data...
 	for (std::size_t n = 0u; n < N; ++n) {
 		// time domain decomposed signal impulses
 		x[n] = rand_norm();
@@ -36,21 +68,30 @@ void rfft(const std::size_t &N)
 	}
 
 	//forward...
-	fftw_plan forward = fftw_plan_dft_r2c_1d(N, x, X, FFTW_ESTIMATE);
 	START_PROFILING(PNAME("forward")) {
 		fftw_execute(forward);
 	}
 	STOP_PROFILING();
-	fftw_destroy_plan(forward);
+	
+	unsigned base = ((N/2)+1) + 1;
+	for(unsigned i = base; i < N; ++i)
+	{
+		ASSERT_TRUE(Re(X[i]) == 0 && Im(X[i]) == 0, 
+					"upper half of tranformed freq output is non-zero at index: %u\n" 
+					"with values: real = %g imag = %g\n",
+					i,
+					Re(X[i]), Im(X[i]));
+	}
 
 	//inverse...
-	fftw_plan inverse = fftw_plan_dft_c2r_1d(N, X, x, FFTW_ESTIMATE);
 	START_PROFILING(PNAME("inverse")) {
 		fftw_execute(inverse);
 	}
 	STOP_PROFILING();
+	
 	fftw_destroy_plan(inverse);
-
+	fftw_destroy_plan(forward);
+	
 	//free resources
 	fftw_free(x);
 	x = NULL;
@@ -66,12 +107,16 @@ void cfft(const std::size_t &N)
 						*X;//output sequence
 		//number of samples in sequences
 		const std::size_t N;
+		const std::size_t N_over_2;
+		const std::size_t N_over_2_plus_1;
 
 		void alloc_data_mem(void)
 		{
-			x = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * N);
+			//behaves like malloc except that it properly aligns the array when 
+			//SIMD instructions (such as SSE and Altivec) are available
+			x = fftw_alloc_complex(N);
 			assert(x != NULL && "failed to allocate memory for time domain sequence");
-			X = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * N);
+			X = fftw_alloc_complex(N);
 			assert(X != NULL && "failed to allocate memory for frequency domain sequence");
 		}
 
@@ -115,7 +160,7 @@ void cfft(const std::size_t &N)
 		}
 
 	public:
-		F(const std::size_t &N_): x(NULL), X(NULL), N(N_){
+		F(const std::size_t &N_): x(NULL), X(NULL), N(N_), N_over_2(N/2), N_over_2_plus_1(N_over_2+1){
 			alloc_data_mem();
 		}
 
@@ -125,66 +170,150 @@ void cfft(const std::size_t &N)
 
 		//complex valued complex fft i.e effectively two input signals
 		//one for real values and the other for the imaginary
-		void f0(void)
+		void f0(fftw_plan &forward_plan, fftw_plan &inverse_plan)
 		{
 			//forward...
-			fftw_plan forward_fft_plan = fftw_plan_dft_1d(N, x, X, FFTW_FORWARD, FFTW_ESTIMATE);
-			START_PROFILING(PNAME("complex_forward")) {
-			  fftw_execute(forward_fft_plan);
+			
+			START_PROFILING(PNAME("complex_forward"));
+			{
+			  fftw_execute(forward_plan);
 			}
 			STOP_PROFILING();
-			fftw_destroy_plan(forward_fft_plan);
+			
 			
 			//inverse...
-			fftw_plan inverse_fft_plan = fftw_plan_dft_1d(N, X, x, FFTW_BACKWARD, FFTW_ESTIMATE);
-			START_PROFILING(PNAME("complex_inverse")) {
-			  fftw_execute(inverse_fft_plan);
+			
+			START_PROFILING(PNAME("complex_inverse"));
+			{
+			  fftw_execute(inverse_plan);
 			}
 			STOP_PROFILING();
-			fftw_destroy_plan(inverse_fft_plan);
 		}
 
-		//real valued complex fft i.e one signal stored in the real component of 
-		//every element in the input sequence
-		void f1(void)
+		//real-valued complex fft i.e one signal stored in the real component of 
+		//every complex element in the input sequence
+		void f1(fftw_plan &forward_plan, fftw_plan &inverse_plan)
 		{
+			for(unsigned i = 0; i < N; ++i)
+			{
+				ASSERT_TRUE(Re(X[i]) == 0 && Im(X[i]) == 0, 
+							"frequency values not reset");
+			}
+
 			//forward...
-			fftw_plan forward_fft_plan = fftw_plan_dft_1d(N, x, X, FFTW_FORWARD, FFTW_ESTIMATE);
-			START_PROFILING(PNAME("rcomplex_forward")) {
-			  fftw_execute(forward_fft_plan);
+			START_PROFILING(PNAME("rcomplex_forward")); 
+			{
+			  fftw_execute(forward_plan);
 			}
 			STOP_PROFILING();
-			fftw_destroy_plan(forward_fft_plan);
+
+			//to calculate the real DFT by means of the Complex DFT. First, move
+			//the N point signal into the real part of the complex DFT's time domain, and
+			//then set all of the samples in the imaginary part to zero. Calculation of the
+			//complex DFT results in a real and an imaginary signal in the frequency
+			//domain, each composed of N points. Samples 0 through N/2 of these signals
+			//correspond to the real DFT's spectrum.
+
+			// points 0 through N/2 in the complex DFT are the same as in the real DFT, 
+			// for both the real and the imaginary parts. For the real part, point 
+			// N/2 + 1 is the same as point N/2 - 1 , point N/2+ 2 is the same as point 
+			// N/2- 2, etc. This continues to point N-1 being the same as point 1. The same 
+			// basic pattern is used for the imaginary part, except the sign is changed. 
+			// That is, point N/2+ 1 is the negative of point N/2- 1 , point N/2+ 2 is the 
+			// negative of point N/2- 2 , etc.
+			// Samples 0 and N/2 do not have a matching point in this duplication scheme.
+
+			//THE ASSERTION FAILS [UNPREDICTABLY] DUE TO PRECISION ERRORS WHEN USING DOUBLE 
+			//SO I JUST CAST TO FLOAT AS A COMPROMISE BEFORE DOING THE VERIFICATION COMPARISON
+			unsigned c = 0;
+			while ((++c) != N_over_2)
+			{
+				double x = Re(X[N_over_2 + c]), y = Re(X[N_over_2 - c]);
+				ASSERT_TRUE(static_cast<float>(Re(X[N_over_2 + c])) == static_cast<float>(Re(X[N_over_2 - c])),
+							"Real: (N/2 + c) -> %g is NOT the same as (N/2 - c) -> %g",
+							Re(X[N_over_2 + c]), Re(X[N_over_2 - c]));
+
+				ASSERT_TRUE(static_cast<float>(Im(X[N_over_2 + c])) == -static_cast<float>(Im(X[N_over_2 - c])),
+							"imag: (N/2 + c) -> %g is NOT complex conjugate (N/2 - c)-> %g ",
+							Im(X[N_over_2 + c]), Im(X[N_over_2 - c]));
+			}
 			
 			//inverse...
-			fftw_plan inverse_fft_plan = fftw_plan_dft_1d(N, X, x, FFTW_BACKWARD, FFTW_ESTIMATE);
-			 START_PROFILING(PNAME("rcomplex_inverse")) {
-			 
-			  fftw_execute(inverse_fft_plan);
+			START_PROFILING(PNAME("rcomplex_inverse")); 
+			{
+			  fftw_execute(inverse_plan);
 			}
-			 STOP_PROFILING();
-			 
-			fftw_destroy_plan(inverse_fft_plan);
+			STOP_PROFILING();
+
+			// To check that the proper symmetry is present, after taking the inverse FFT, 
+			// look at the imaginary part of the time domain. It will contain all zeros if 
+			// everything is correct (except for a few parts-permillion of noise, using single
+			// precision calculations).
+
+			// AGAIN:
+			// THE ASSERTION FAILS [UNPREDICTABLY] DUE TO PRECISION ERRORS WHEN USING DOUBLE 
+			// SO THIS TIME I SIMPLY CHECK TO SEE IF THE VALUE PRODUCED BY THE INVERSE OPERATION 
+			// IS BELOW A CERTAIN [ACCEPTABLE] THRESHOLD FOR THIS PARTICULAR CASE
+			for (unsigned i(0); i < N; ++i)
+			{
+				ASSERT_TRUE(Im(x[i]) <= 0.00001, 
+							"inverse op returned invalid result:\n"
+							"instead Im(x[i]) == %f", Im(x[i]));
+			}
 		}
 
 		//use function call operator to kill two birds with one stone
 		void operator()(void)
 		{
-			//fill data for complex valued fft
-			fill_data();
-			//execute forward and inverse operation
-			f0();
-			//wipe generated temporary results
-			wipe_data();
+			fftw_plan forward_plan = NULL, inverse_plan = NULL;
+
+			// create plans first
+			// Once the plan has been created, you can use it as many times as
+			// you like for transforms on the specified in/out arrays, computing 
+			// the actual transforms via fftw_execute(plan)
+			START_PROFILING(PNAME("cmplx_fplan_crte")); 
+			{
+				forward_plan = fftw_plan_dft_1d(N, x, X, FFTW_FORWARD, FFTW_MEASURE);
+			}
+			STOP_PROFILING();
+
+			ASSERT_TRUE(forward_plan != NULL, "failed to create forward complex plan");
+
+			STORE_AMF_OP_STATS(forward_plan);
+
+			START_PROFILING(PNAME("cmplx_iplan_crte")); 
+			{
+				inverse_plan = fftw_plan_dft_1d(N, X, x, FFTW_BACKWARD, FFTW_MEASURE);
+			}
+			STOP_PROFILING();
+
+			ASSERT_TRUE(inverse_plan != NULL, "failed to create inverse complex plan");
+
+			STORE_AMF_OP_STATS(inverse_plan);
+			
 
 			//---------------------------------------
+			{
+				//fill data for COMPLEX VALUED fft
+				fill_data();
+				//execute forward and inverse operation
+				f0(forward_plan, inverse_plan);
+				//wipe generated temporary results
+				wipe_data();
+			}
+			//---------------------------------------
+			{
+				//fill data for REAL VALUED complex fft
+				fill_data(IGNORE_IMAGINARY_INPUT);
+				//execute forward and inverse operation
+				f1(forward_plan, inverse_plan);
+				//wipe generated temporary results
+				wipe_data();
+			}
+			//---------------------------------------
 
-			//fill data for real valued complex fft
-			fill_data(true);
-			//execute forward and inverse operation
-			f1();
-			//wipe generated temporary results
-			wipe_data();
+			fftw_destroy_plan(forward_plan);
+			fftw_destroy_plan(inverse_plan);
 		}
 	}cfft_func(N);
 
@@ -192,10 +321,9 @@ void cfft(const std::size_t &N)
 	cfft_func();
 }
 
-DEF_FUNCS_(1023);
+DEF_FUNCS_(1026);
 DEF_FUNCS_(1024);
 
-//DEF_FUNCS_(1023)
 //DEF_FUNCS_(65536)
 //DEF_FUNCS_(65535)
 //DEF_FUNCS_(4294967296)

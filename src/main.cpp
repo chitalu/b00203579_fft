@@ -7,7 +7,10 @@
   g_fft_funcs["real_fft_op_" #arg] = real_fft_op_##arg;                        \
   g_fft_funcs["complex_fft_op_" #arg] = complex_fft_op_##arg;
 
+//extern...
 std::map<std::string, fft_func_t> g_fft_funcs;
+std::map<std::string, std::vector<double>> g_op_stats;
+std::string g_last_profiled_task;
 
 //generate value between 0.0f and 1.0f
 float rand_norm(void)
@@ -37,7 +40,7 @@ int main(int argc, char const *argv[]) {
   printf("using seed: %u\n\n", program_seed);
 
   // initialise function pointer vars
-	REG_FUNC(1023);
+	REG_FUNC(1026);
 	REG_FUNC(1024);
 
   /*REG_FUNC(65536);
@@ -76,10 +79,14 @@ int main(int argc, char const *argv[]) {
     }
   } mean_reduce;
 
+  //TODO: ADD CODE TO WRITE ALL STATS TO FILE
   printf("\nelapsed times:\n");
   for (ptime_iter_t i = g_tstamps.cbegin(); i != g_tstamps.cend(); ++i) {
     printf("task: %s\ntime: %f microseconds\n\n", i->first.c_str(),
            mean_reduce(i->second));
   }
+
+  //TODO:
+  g_op_stats;
   return 0;
 }

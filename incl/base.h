@@ -9,21 +9,73 @@
 #include <string>
 #include <map>
 #include <list>
+#include <vector>
+
+#include <cstdarg>
+
+#define MAX_FUNC_RUNS (128)
+
+#define ASSERT_TRUE(cond_, msg_, ...)\
+do{\
+	if(!(cond_)){\
+	fprintf(stderr, "runtime error: \n@  -> " #cond_ "\nmsg: " msg_ "\n", ##__VA_ARGS__);\
+	__debugbreak();\
+	}\
+}while(false);
+
+#define IGNORE_IMAGINARY_INPUT (true)
 
 typedef void (*fft_func_t)(void);
 extern std::map<std::string, fft_func_t> g_fft_funcs;
 
 extern std::map<std::string, std::list<double>> g_tstamps;
 typedef std::map<std::string, std::list<double>>::const_iterator ptime_iter_t;
+extern std::string g_last_profiled_task;
 
-#define MAX_FUNC_RUNS (128)
+// stores the details of the determined number of floating-point additions, 
+// multiplications, and fused multiply-add operations involved in the
+// execution of a "named" plan i.e. one corresponding the number of samples
+// analysed. For example, this will store the information of a plan used to execute
+// an [inverse] fft with [N] samples of [complex] data. The key in the std::map
+// is a string corresponding to a unique name of the task and the value is an
+// array of three doubles holding the aforementioned info on the task.
+// This is written to a file at program teardown.
+// ...
+//
+// Taken from: http://www.fftw.org/doc/Using-Plans.html#Using-Plans
+// void fftw_flops(const fftw_plan plan, double *add, double *mul, double *fma);
+// 
+// Given a plan, set add, mul, and fma to an exact count of the number of floating-point 
+// additions, multiplications, and fused multiply-add operations involved in the plan's 
+// execution. The total number of floating-point operations (flops) is add + mul + 2*fma, 
+// or add + mul + fma if the hardware supports fused multiply-add instructions (although 
+// the number of FMA operations is only approximate because of compiler voodoo). (The 
+// number of operations should be an integer, but we use double to avoid overflowing int 
+// for large transforms; the arguments are of type double even for single and long-double 
+// precision versions of FFTW.) 
+extern std::map<std::string, std::vector<double>> g_op_stats;
+typedef std::map<std::string, std::vector<double>>::const_iterator op_stats_iter_t;
+
+#define ADD_OPERATIONS (0)
+#define MUL_OPERATIONS (1)
+#define FMA_OPERATIONS (2)
+
+// read [add] [mul] and [fma] op stats from fftw API
+// and store them into g_op_stats
+#define STORE_AMF_OP_STATS(plan_)\
+	do{\
+		std::vector<double> ops; ops.reserve(3); ops.resize(3);\
+		fftw_flops(plan_, &ops[ADD_OPERATIONS], &ops[MUL_OPERATIONS], &ops[FMA_OPERATIONS]);\
+		g_op_stats.insert(std::make_pair(g_last_profiled_task, ops));\
+	}while(false);
 
 struct cprofile_t {
   cprofile_t(const std::string &desc_in)
       : desc(desc_in), m_PC_freq(0.0), m_start_time(0) {
     start_counter();
   }
-  ~cprofile_t() {
+  ~cprofile_t(void) {
+	  g_last_profiled_task = desc;
     // store time results when object leaves macrro scope
     g_tstamps[desc].push_back(get_counter());
 
@@ -89,15 +141,27 @@ private:
   DECL_FUNC_(complex, dsize)
 
 // fft analysis function declarations
-// each with a different number of samples to be tested
+//
+// each with a specifies different number of samples to be tested. 
+// sizes that are products of small factors are transformed most 
+// efficiently (although prime sizes still use an O(n log n) algorithm)
+// http://www.fftw.org/doc/Complex-One_002dDimensional-DFTs.html
+
 DECL_FUNCS_(1024); // 2^10
-DECL_FUNCS_(1023); // 2^10 - 1
+DECL_FUNCS_(1026); // 2^10 + 2
 
 DECL_FUNCS_(65536); // 2^16
-DECL_FUNCS_(65535); // 2^16 - 1
+DECL_FUNCS_(65538); // 2^16 + 2
 
 DECL_FUNCS_(4294967296); // 2^32
-DECL_FUNCS_(4294967295); // 2^32 -1
+DECL_FUNCS_(4294967298); // 2^32 + 2
+
+//prime number based
+DECL_FUNCS_(104729); // 
+DECL_FUNCS_(104728); // prime# 104729 - 1
+
+DECL_FUNCS_(2147483647); //  Mersenne prime
+DECL_FUNCS_(2147483646); //  Mersenne prime - 1
 
 #define DEF_FUNC_(dtype, dsize) void dtype##_fft_op_##dsize(void)
 
