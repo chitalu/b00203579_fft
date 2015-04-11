@@ -13,6 +13,9 @@
 
 #include <cstdarg>
 
+// fft in the west!
+#include "fftw3.h"
+
 #define MAX_FUNC_RUNS (128)
 
 #define ASSERT_TRUE(cond_, msg_, ...)\
@@ -22,6 +25,9 @@ do{\
 	__debugbreak();\
 	}\
 }while(false);
+
+#define ASSERT_EQ(arg0, arg1, msg_, ...)\
+	ASSERT_TRUE(fabs(arg0 - arg1) < 0.000001, msg_, ##__VA_ARGS__);
 
 #define IGNORE_IMAGINARY_INPUT (true)
 
@@ -68,6 +74,8 @@ typedef std::map<std::string, std::vector<double>>::const_iterator op_stats_iter
 		fftw_flops(plan_, &ops[ADD_OPERATIONS], &ops[MUL_OPERATIONS], &ops[FMA_OPERATIONS]);\
 		g_op_stats.insert(std::make_pair(g_last_profiled_task, ops));\
 	}while(false);
+
+extern unsigned int g_planner_flag;
 
 struct cprofile_t {
   cprofile_t(const std::string &desc_in)
@@ -150,18 +158,14 @@ private:
 DECL_FUNCS_(1024); // 2^10
 DECL_FUNCS_(1026); // 2^10 + 2
 
+DECL_FUNCS_(4096); // 2^12
+DECL_FUNCS_(4098); // 2^12 + 2
+
+DECL_FUNCS_(16384); // 2^14
+DECL_FUNCS_(16386); // 2^14 + 2
+
 DECL_FUNCS_(65536); // 2^16
 DECL_FUNCS_(65538); // 2^16 + 2
-
-DECL_FUNCS_(4294967296); // 2^32
-DECL_FUNCS_(4294967298); // 2^32 + 2
-
-//prime number based
-DECL_FUNCS_(104729); // 
-DECL_FUNCS_(104728); // prime# 104729 - 1
-
-DECL_FUNCS_(2147483647); //  Mersenne prime
-DECL_FUNCS_(2147483646); //  Mersenne prime - 1
 
 #define DEF_FUNC_(dtype, dsize) void dtype##_fft_op_##dsize(void)
 
