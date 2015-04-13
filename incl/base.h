@@ -13,6 +13,8 @@
 
 #include <cstdarg>
 
+#include <cassert>
+
 // fft in the west!
 #include "fftw3.h"
 
@@ -77,9 +79,11 @@ typedef std::map<std::string, std::vector<double>>::const_iterator op_stats_iter
 
 extern unsigned int g_planner_flag;
 
+extern LARGE_INTEGER g_system_clock_freq;
+
 struct cprofile_t {
   cprofile_t(const std::string &desc_in)
-      : desc(desc_in), m_PC_freq(0.0), m_start_time(0) {
+      : desc(desc_in) {
     start_counter();
   }
   ~cprofile_t(void) {
@@ -94,38 +98,36 @@ struct cprofile_t {
 
 private:
   std::string desc;
-  double m_PC_freq;
-  __int64 m_start_time;
+  LARGE_INTEGER m_start_time;
 
   // records the number of ticks the performance counter has
   // in the start_time variable
   void start_counter(void) {
-    LARGE_INTEGER li;
-    // Retrieves the frequency of the performance counter. The frequency
-    // of the performance counter is fixed at system boot and is consistent
-    // across all processors. Therefore, the frequency need only be queried
-    // upon application initialization, and the result can be cached.
-    //**though the value is fixed i still keep querying, it works the same!
-    if (!QueryPerformanceFrequency(&li))
-      printf("QueryPerformanceFrequency failed!\n");
-
-    m_PC_freq = double(li.QuadPart) / 1000000.0;
-
-    QueryPerformanceCounter(&li);
-    m_start_time = li.QuadPart;
+    QueryPerformanceCounter(&m_start_time);
   }
 
   // returns the number of milliseconds since start_counter() was
   // last called as a double, so if get_counter() returns 0.001 then
   // it has been about 1 microsecond since start_counter() was called
   double get_counter(void) {
-    LARGE_INTEGER li;
+    LARGE_INTEGER end_time, elapsed;
     // On a multiprocessor computer, it should not matter which processor
     // is called. However, you can get different results on different processors
     // due to bugs in the basic input/output system (BIOS) or the hardware
     // abstraction layer (HAL).
-    QueryPerformanceCounter(&li);
-    return double(li.QuadPart - m_start_time) / m_PC_freq;
+    QueryPerformanceCounter(&end_time);
+
+	elapsed.QuadPart = end_time.QuadPart - m_start_time.QuadPart;
+
+	// We now have the elapsed number of ticks, along with the
+	// number of ticks-per-second. We use these values
+	// to convert to the number of elapsed microseconds.
+	// To guard against loss-of-precision, we convert
+	// to microseconds *before* dividing by ticks-per-second.
+	elapsed.QuadPart *= 1000000;
+
+	//return micro seconds
+	return ((double)elapsed.QuadPart / (double)g_system_clock_freq.QuadPart);
   }
 };
 
@@ -154,6 +156,12 @@ private:
 // sizes that are products of small factors are transformed most 
 // efficiently (although prime sizes still use an O(n log n) algorithm)
 // http://www.fftw.org/doc/Complex-One_002dDimensional-DFTs.html
+
+DECL_FUNCS_(16); // 2^4
+DECL_FUNCS_(32); // 2^5
+
+DECL_FUNCS_(258); // 2^8 + 2
+DECL_FUNCS_(512); // 2^9
 
 DECL_FUNCS_(1024); // 2^10
 DECL_FUNCS_(1026); // 2^10 + 2

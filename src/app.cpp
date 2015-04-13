@@ -88,7 +88,8 @@ void rfft(const std::size_t &N) {
     // frequency domain(not N / 2 points).
 
     // forward...
-    START_PROFILING(PNAME("forward")) { fftw_execute(forward); }
+    START_PROFILING(PNAME("forward"));
+	{ fftw_execute(forward); }
     STOP_PROFILING();
 
     unsigned base = (N_over_2 + 1) + 1;
@@ -101,7 +102,8 @@ void rfft(const std::size_t &N) {
     }
 
     // inverse...
-    START_PROFILING(PNAME("inverse")) { fftw_execute(inverse); }
+    START_PROFILING(PNAME("inverse"));
+	{ fftw_execute(inverse); }
     STOP_PROFILING();
   }
   printf(".");
@@ -112,7 +114,7 @@ void rfft(const std::size_t &N) {
   x = NULL;
   fftw_free(X);
   X = NULL;
-  printf(".\n");
+  printf("..\n");
 }
 
 void cfft(const std::size_t &N) {
@@ -233,12 +235,12 @@ void cfft(const std::size_t &N) {
       unsigned c = 0;
       while ((++c) != N_over_2) {
         ASSERT_EQ(Re(X[N_over_2 + c]), Re(X[N_over_2 - c]),
-                  "Real: (N/2 + c) -> %g is NOT the same as (N/2 - c) -> %g",
+                  "Real: (N/2 + c) -> %f is NOT the same as (N/2 - c) -> %f",
                   Re(X[N_over_2 + c]), Re(X[N_over_2 - c]));
 
         ASSERT_TRUE(trnc(Im(X[N_over_2 + c])) == -trnc(Im(X[N_over_2 - c])),
-            "imag: (N/2 + c) -> %g is NOT complex conjugate (N/2 - c) -> %g ",
-            Im(X[N_over_2 + c]), Im(X[N_over_2 - c]));
+            "imag: (N/2 + c) -> %f is NOT negative of (N/2 - c) -> %f ",
+            trnc(Im(X[N_over_2 + c])), -trnc(Im(X[N_over_2 - c])));
       }
 
       // inverse...
@@ -318,13 +320,20 @@ void cfft(const std::size_t &N) {
 	  printf(".");
       fftw_destroy_plan(forward_plan);
       fftw_destroy_plan(inverse_plan);
-	  printf(".\n");
+	  printf(".");
     }
   } cfft_func(N);
 
   // do analysis...
   cfft_func();
+   printf(".\n");
 }
+
+DEF_FUNCS_(16); // 2^4
+DEF_FUNCS_(32); // 2^5
+
+DEF_FUNCS_(258); // 2^8 + 2
+DEF_FUNCS_(512); // 2^9
 
 DEF_FUNCS_(1024); // 2^10
 DEF_FUNCS_(1026); // 2^10 + 2

@@ -18,6 +18,8 @@ unsigned int g_planner_flag;
 
 unsigned program_seed = 0;
 
+LARGE_INTEGER g_system_clock_freq;
+
 // generate value between 0.0f and 1.0f
 float rand_norm(void) {
   return static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
@@ -51,43 +53,112 @@ void save_pdata(void) {
     }
   } mean_reduce;
 
-  stringstream strm;
+  struct{
+	  string num_samples(const string &s)
+	  {
+		  return s.substr(0, s.find_first_of('-'));
+	  }
 
-  string fname0("fftw-time-stats.csv");
-  string pdata0("Task, time (ms)\n");
+	  string op_stats(const string &s)
+	  {
+		  return s.substr(s.find_first_of(',') + 1);
+	  }
 
-  for (ptime_iter_t i = g_tstamps.cbegin(); i != g_tstamps.cend(); ++i) {
-    strm << i->first.c_str() << ", " << mean_reduce(i->second) << "\n";
-  }
-  pdata0.append(strm.str());
+	  string transform_dir(const string &s)
+	  {
+		  return (s.find("forward") != string::npos ? "forward" : "inverse");
+	  }
 
-  strm.clear(); // clear any bits set
-  strm.str(std::string());
+	  string input_data_type(const string &s)
+	  {
+		  std::size_t off = s.find_first_of('-')+1;
+		  string subs = s.substr(off, 4);
+		  if(subs == "rfft")
+		  {
+			  subs = "real";
+		  }
+		  else
+		  {
+			  subs = "complex";
+			  if(s.find("::f1") != string::npos)
+			  {
+				  subs.append("-ro");
+			  }
+		  }
 
-  ofstream fhndl0, fhndl1;
+		  return subs;
+	  }
+  }get_;
 
-  fhndl0.open(fname0);
+	std::map<string, stringstream> file_data;
+	for (ptime_iter_t i = g_tstamps.cbegin(); i != g_tstamps.cend(); ++i) 
+	{
+		string gname = i->first;
+		if(gname.find("crte") != string::npos)
+		{
+			continue;
+		}
 
-  if (fhndl0.is_open()) {
-    fhndl0 << pdata0;
-  }
-  fhndl0.close();
+		double time_taken = mean_reduce(i->second);
 
-  string fname1("fftw-op-stats.csv");
-  string pdata1("fftw-plan, add ops, mul ops, f-madd ops\n");
+		string input_data_type = get_.input_data_type(gname);
 
-  for (op_stats_iter_t i = g_op_stats.cbegin(); i != g_op_stats.cend(); ++i) {
-    strm << i->first.c_str() << ", " << i->second[ADD_OPERATIONS] << ", "
-         << i->second[MUL_OPERATIONS] << ", " << i->second[FMA_OPERATIONS]
-         << "\n";
-  }
-  pdata1.append(strm.str());
+		string fname(input_data_type + "-");
 
-  fhndl1.open(fname1);
-  if (fhndl1.is_open()) {
-    fhndl1 << pdata1;
-  }
-  fhndl1.close();
+		string transform_dir = get_.transform_dir(gname);
+		fname.append(transform_dir+ ".csv");
+
+		string samples = get_.num_samples(gname);
+		
+		if(file_data.find(fname) == file_data.end())
+		{
+			printf("\npreparing file: %s\n", fname.c_str());
+			file_data[fname] << ("samples, adds, multiplies, fused-madds, time (microsecs)\n");
+		}
+
+		file_data[fname] << samples << ", ";
+
+		bool found = false;
+		for (op_stats_iter_t i_ = g_op_stats.cbegin(); i_ != g_op_stats.cend(); ++i_) {
+			string gname_ = i_->first;
+
+			if( samples == get_.num_samples(gname_) && 
+				input_data_type.find(get_.input_data_type(gname_).substr(0, 4)) != string::npos)
+			{
+				if((transform_dir == "forward" && gname_.find("fplan") != string::npos) ||
+					(transform_dir == "inverse" && gname_.find("iplan") != string::npos))
+				{
+					file_data[fname] << (long long)i_->second[ADD_OPERATIONS] << ", " << (long long)i_->second[MUL_OPERATIONS] << ", " << (long long)i_->second[FMA_OPERATIONS] << ", ";
+					found = true;
+					break;
+				}
+				else 
+				{
+					continue;
+				}
+			}
+		}
+
+		assert(found);
+
+		file_data[fname] << time_taken << "\n";
+	}
+
+  
+	for(std::map<string, stringstream>::iterator i = file_data.begin();
+		i != file_data.end(); ++i)
+	{
+		ofstream f;
+
+		f.open(i->first);
+
+		if(f.is_open())
+		{
+			f << i->second.str();
+		}
+
+		f.close();
+	}
 }
 
 void cmd_args(int argc, char const *argv[])
@@ -154,7 +225,29 @@ int main(int argc, char const *argv[]) {
 
   printf("using seed: %u\n\n", program_seed);
 
-  // initialise function pointer vars
+    // Retrieves the frequency of the performance counter. The frequency
+    // of the performance counter is fixed at system boot and is consistent
+    // across all processors. Therefore, the frequency need only be queried
+    // upon application initialization, and the result can be cached.
+    //**though the value is fixed i still keep querying, it works the same!
+
+	if (!QueryPerformanceFrequency(&g_system_clock_freq))
+	{
+		fprintf(stderr, "QueryPerformanceFrequency failed!\n");
+		exit(1);
+	}
+	assert(g_system_clock_freq.QuadPart != 0);
+
+	printf("clock tick frequency: %lld\n\n", g_system_clock_freq.QuadPart);
+
+  // initialise function pointer vars denoting the sequence lengths too!
+
+  REG_FUNC(16); // 2^4
+  REG_FUNC(32); // 2^5
+
+  REG_FUNC(258); // 2^8 + 2
+  REG_FUNC(512); // 2^9
+
   REG_FUNC(1024); // 2^10
   REG_FUNC(1026); // 2^10 + 2
 
