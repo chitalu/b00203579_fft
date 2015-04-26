@@ -15,23 +15,23 @@ inline std::string gen_name(const std::string &task, const std::string &dtype,
 
 #define PNAME(task_name_) gen_name(task_name_, __FUNCTION__, N)
 
-//truncate values after decimal point
-inline float trnc(double v)
-{
-	char sz[64];
-	sprintf(sz, "%.6lf\n", v); //sz contains 0.6000
-	float r = (float)atof(sz);
-	return r;
+// truncate values after decimal point
+inline float trnc(double v) {
+  char sz[64];
+  sprintf(sz, "%.6lf\n", v); // sz contains 0.6000
+  float r = (float)atof(sz);
+  return r;
 }
 
 // Note to self:
-// You must create the plan before initializing the input, because FFTW_EXHAUSTIVE
+// You must create the plan before initializing the input, because
+// FFTW_EXHAUSTIVE
 // overwrites the in/out arrays. (Technically, FFTW_ESTIMATE does not touch your
 // arrays, but you should always create plans first just to be sure.)
 // http://www.fftw.org/doc/Complex-One_002dDimensional-DFTs.html
 
 void rfft(const std::size_t &N) {
-	printf(".");
+  printf(".");
   fftw_plan forward = NULL, inverse = NULL;
 
   double *x = NULL;
@@ -39,7 +39,7 @@ void rfft(const std::size_t &N) {
 
   const std::size_t N_over_2(N / 2);
 
-  // equivalent to (double *) fftw_malloc(sizeof(double) * n) and 
+  // equivalent to (double *) fftw_malloc(sizeof(double) * n) and
   // (fftw_complex *) fftw_malloc(sizeof(fftw_complex) * n), respectively
   // http://www.fftw.org/doc/Memory-Allocation.html
   x = fftw_alloc_real(N);
@@ -55,9 +55,9 @@ void rfft(const std::size_t &N) {
   ASSERT_TRUE(forward != NULL, "failed to create forward real plan");
 
   STORE_AMF_OP_STATS(forward);
-  
+
   printf(".");
-  
+
   START_PROFILING(PNAME("real_iplan_crte"));
   { inverse = fftw_plan_dft_c2r_1d(N, X, x, g_planner_flag); }
   STOP_PROFILING();
@@ -89,7 +89,7 @@ void rfft(const std::size_t &N) {
 
     // forward...
     START_PROFILING(PNAME("forward"));
-	{ fftw_execute(forward); }
+    { fftw_execute(forward); }
     STOP_PROFILING();
 
     unsigned base = (N_over_2 + 1) + 1;
@@ -103,7 +103,7 @@ void rfft(const std::size_t &N) {
 
     // inverse...
     START_PROFILING(PNAME("inverse"));
-	{ fftw_execute(inverse); }
+    { fftw_execute(inverse); }
     STOP_PROFILING();
   }
   printf(".");
@@ -239,8 +239,8 @@ void cfft(const std::size_t &N) {
                   Re(X[N_over_2 + c]), Re(X[N_over_2 - c]));
 
         ASSERT_TRUE(trnc(Im(X[N_over_2 + c])) == -trnc(Im(X[N_over_2 - c])),
-            "imag: (N/2 + c) -> %f is NOT negative of (N/2 - c) -> %f ",
-            trnc(Im(X[N_over_2 + c])), -trnc(Im(X[N_over_2 - c])));
+                    "imag: (N/2 + c) -> %f is NOT negative of (N/2 - c) -> %f ",
+                    trnc(Im(X[N_over_2 + c])), -trnc(Im(X[N_over_2 - c])));
       }
 
       // inverse...
@@ -269,7 +269,7 @@ void cfft(const std::size_t &N) {
 
     // use function call operator to kill two birds with one stone
     void operator()(void) {
-		printf(".");
+      printf(".");
       fftw_plan forward_plan = NULL, inverse_plan = NULL;
 
       // create plans first
@@ -277,23 +277,27 @@ void cfft(const std::size_t &N) {
       // you like for transforms on the specified in/out arrays, computing
       // the actual transforms via fftw_execute(plan)
       START_PROFILING(PNAME("cmplx_fplan_crte"));
-	  { forward_plan = fftw_plan_dft_1d(N, x, X, FFTW_FORWARD, g_planner_flag); }
+      {
+        forward_plan = fftw_plan_dft_1d(N, x, X, FFTW_FORWARD, g_planner_flag);
+      }
       STOP_PROFILING();
 
       ASSERT_TRUE(forward_plan != NULL,
                   "failed to create forward complex plan");
 
       STORE_AMF_OP_STATS(forward_plan);
-	  printf(".");
+      printf(".");
       START_PROFILING(PNAME("cmplx_iplan_crte"));
-	  { inverse_plan = fftw_plan_dft_1d(N, X, x, FFTW_BACKWARD, g_planner_flag); }
+      {
+        inverse_plan = fftw_plan_dft_1d(N, X, x, FFTW_BACKWARD, g_planner_flag);
+      }
       STOP_PROFILING();
 
       ASSERT_TRUE(inverse_plan != NULL,
                   "failed to create inverse complex plan");
 
       STORE_AMF_OP_STATS(inverse_plan);
-	  printf(".|");
+      printf(".|");
       // to get a good estimate call fft analysis function multiple times
       // to determine an average value
       int n = 0;
@@ -317,16 +321,16 @@ void cfft(const std::size_t &N) {
           wipe_data(IGNORE_IMAGINARY_INPUT);
         }
       }
-	  printf(".");
+      printf(".");
       fftw_destroy_plan(forward_plan);
       fftw_destroy_plan(inverse_plan);
-	  printf(".");
+      printf(".");
     }
   } cfft_func(N);
 
   // do analysis...
   cfft_func();
-   printf(".\n");
+  printf(".\n");
 }
 
 DEF_FUNCS_(16); // 2^4
