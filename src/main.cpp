@@ -238,7 +238,7 @@ int main(int argc, char const *argv[]) {
 	}
 	assert(g_system_clock_freq.QuadPart != 0);
 
-	printf("clock tick frequency: %lld\n\n", g_system_clock_freq.QuadPart);
+	printf("system clock frequency: %lld\n\n", g_system_clock_freq.QuadPart);
 
   // initialise function pointer vars denoting the sequence lengths too!
 
