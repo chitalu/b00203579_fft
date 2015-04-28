@@ -53,160 +53,145 @@ void save_pdata(void) {
     }
   } mean_reduce;
 
-  struct{
-	  string num_samples(const string &s)
-	  {
-		  return s.substr(0, s.find_first_of('-'));
-	  }
+  struct {
+    string num_samples(const string &s) {
+      return s.substr(0, s.find_first_of('-'));
+    }
 
-	  string op_stats(const string &s)
-	  {
-		  return s.substr(s.find_first_of(',') + 1);
-	  }
+    string op_stats(const string &s) {
+      return s.substr(s.find_first_of(',') + 1);
+    }
 
-	  string transform_dir(const string &s)
-	  {
-		  return (s.find("forward") != string::npos ? "forward" : "inverse");
-	  }
+    string transform_dir(const string &s) {
+      return (s.find("forward") != string::npos ? "forward" : "inverse");
+    }
 
-	  string input_data_type(const string &s)
-	  {
-		  std::size_t off = s.find_first_of('-')+1;
-		  string subs = s.substr(off, 4);
-		  if(subs == "rfft")
-		  {
-			  subs = "real";
-		  }
-		  else
-		  {
-			  subs = "complex";
-			  if(s.find("::f1") != string::npos)
-			  {
-				  subs.append("-ro");
-			  }
-		  }
+    string input_data_type(const string &s) {
+      std::size_t off = s.find_first_of('-') + 1;
+      string subs = s.substr(off, 4);
+      if (subs == "rfft") {
+        subs = "real";
+      } else {
+        subs = "complex";
+        if (s.find("::f1") != string::npos) {
+          subs.append("-ro");
+        }
+      }
 
-		  return subs;
-	  }
-  }get_;
+      return subs;
+    }
+  } get_;
 
-	std::map<string, stringstream> file_data;
-	for (ptime_iter_t i = g_tstamps.cbegin(); i != g_tstamps.cend(); ++i) 
-	{
-		string gname = i->first;
-		if(gname.find("crte") != string::npos)
-		{
-			continue;
-		}
+  std::map<string, stringstream> file_data;
+  for (ptime_iter_t i = g_tstamps.cbegin(); i != g_tstamps.cend(); ++i) {
+    string gname = i->first;
+    if (gname.find("crte") != string::npos) {
+      continue;
+    }
 
-		double time_taken = mean_reduce(i->second);
+    double time_taken = mean_reduce(i->second);
 
-		string input_data_type = get_.input_data_type(gname);
+    string input_data_type = get_.input_data_type(gname);
 
-		string fname(input_data_type + "-");
+    string fname(input_data_type + "-");
 
-		string transform_dir = get_.transform_dir(gname);
-		fname.append(transform_dir+ ".csv");
+    string transform_dir = get_.transform_dir(gname);
+    fname.append(transform_dir + ".csv");
 
-		string samples = get_.num_samples(gname);
-		
-		if(file_data.find(fname) == file_data.end())
-		{
-			printf("\npreparing file: %s\n", fname.c_str());
-			file_data[fname] << ("samples, adds, multiplies, fused-madds, time (microsecs)\n");
-		}
+    string samples = get_.num_samples(gname);
 
-		file_data[fname] << samples << ", ";
+    if (file_data.find(fname) == file_data.end()) {
+      printf("\npreparing file: %s\n", fname.c_str());
+      file_data[fname]
+          << ("samples, adds, multiplies, fused-madds, time (microsecs)\n");
+    }
 
-		bool found = false;
-		for (op_stats_iter_t i_ = g_op_stats.cbegin(); i_ != g_op_stats.cend(); ++i_) {
-			string gname_ = i_->first;
+    file_data[fname] << samples << ", ";
 
-			if( samples == get_.num_samples(gname_) && 
-				input_data_type.find(get_.input_data_type(gname_).substr(0, 4)) != string::npos)
-			{
-				if((transform_dir == "forward" && gname_.find("fplan") != string::npos) ||
-					(transform_dir == "inverse" && gname_.find("iplan") != string::npos))
-				{
-					file_data[fname] << (long long)i_->second[ADD_OPERATIONS] << ", " << (long long)i_->second[MUL_OPERATIONS] << ", " << (long long)i_->second[FMA_OPERATIONS] << ", ";
-					found = true;
-					break;
-				}
-				else 
-				{
-					continue;
-				}
-			}
-		}
+    bool found = false;
+    for (op_stats_iter_t i_ = g_op_stats.cbegin(); i_ != g_op_stats.cend();
+         ++i_) {
+      string gname_ = i_->first;
 
-		assert(found);
+      if (samples == get_.num_samples(gname_) &&
+          input_data_type.find(get_.input_data_type(gname_).substr(0, 4)) !=
+              string::npos) {
+        if ((transform_dir == "forward" &&
+             gname_.find("fplan") != string::npos) ||
+            (transform_dir == "inverse" &&
+             gname_.find("iplan") != string::npos)) {
+          file_data[fname] << (long long)i_->second[ADD_OPERATIONS] << ", "
+                           << (long long)i_->second[MUL_OPERATIONS] << ", "
+                           << (long long)i_->second[FMA_OPERATIONS] << ", ";
+          found = true;
+          break;
+        } else {
+          continue;
+        }
+      }
+    }
 
-		file_data[fname] << time_taken << "\n";
-	}
+    assert(found);
 
-  
-	for(std::map<string, stringstream>::iterator i = file_data.begin();
-		i != file_data.end(); ++i)
-	{
-		ofstream f;
+    file_data[fname] << time_taken << "\n";
+  }
 
-		f.open(i->first);
+  for (std::map<string, stringstream>::iterator i = file_data.begin();
+       i != file_data.end(); ++i) {
+    ofstream f;
 
-		if(f.is_open())
-		{
-			f << i->second.str();
-		}
+    f.open(i->first);
 
-		f.close();
-	}
+    if (f.is_open()) {
+      f << i->second.str();
+    }
+
+    f.close();
+  }
 }
 
-void cmd_args(int argc, char const *argv[])
-{
-	static std::map<std::string, unsigned int> flags;
-	flags.insert(std::make_pair("-lo", FFTW_ESTIMATE));
-	flags.insert(std::make_pair("-mid", FFTW_MEASURE));
-	flags.insert(std::make_pair("-hi", FFTW_EXHAUSTIVE));
+void cmd_args(int argc, char const *argv[]) {
+  static std::map<std::string, unsigned int> flags;
+  flags.insert(std::make_pair("-lo", FFTW_ESTIMATE));
+  flags.insert(std::make_pair("-mid", FFTW_MEASURE));
+  flags.insert(std::make_pair("-hi", FFTW_EXHAUSTIVE));
 
-	for (int i(1); i < argc; ++i)
-	{
-		if (std::string(argv[i]) == "-h")
-		{
-			printf(
-				"USAGE\n"
-				"'-hi' :: optimize for high performance during execution\n\t(takes a long time to initialise)\n"
-				"'-mid' :: similar to \"-hi\" but takes slightly less time\n"
-				"'-lo' :: fastest initialisation times but results in slow\n\tperfomance during transformation\n"
-				"'<arg>' :: specify seed value used to initialise srand\n\texample: 'B00203579_fft.exe 219'\n"
-				"'-h' :: display this menu\n\n"
-				);
+  for (int i(1); i < argc; ++i) {
+    if (std::string(argv[i]) == "-h") {
+      printf("USAGE\n"
+             "'-hi' :: optimize for high performance during "
+             "execution\n\t(takes a long time to initialise)\n"
+             "'-mid' :: similar to \"-hi\" but takes slightly less time\n"
+             "'-lo' :: fastest initialisation times but results in "
+             "slow\n\tperfomance during transformation\n"
+             "'<arg>' :: specify seed value used to initialise "
+             "srand\n\texample: 'B00203579_fft.exe 219'\n"
+             "'-h' :: display this menu\n\n");
 
-			exit(0);
-		}
+      exit(0);
+    }
 
-		bool found = false;
-		for (std::map<std::string, unsigned int>::iterator it = flags.begin();
-			it != flags.end(); ++it)
-		{
-			if (std::string(argv[i]) == it->first)
-			{
-				found = true;
-				g_planner_flag = it->second;
-				break;
-			}
-		}
-		if (found)	continue;
+    bool found = false;
+    for (std::map<std::string, unsigned int>::iterator it = flags.begin();
+         it != flags.end(); ++it) {
+      if (std::string(argv[i]) == it->first) {
+        found = true;
+        g_planner_flag = it->second;
+        break;
+      }
+    }
+    if (found)
+      continue;
 
-		int seed = atoi(argv[i]);
-		if (seed > 0)
-		{
-			program_seed = seed;
-			continue;
-		}
+    int seed = atoi(argv[i]);
+    if (seed > 0) {
+      program_seed = seed;
+      continue;
+    }
 
-		fprintf(stderr, "invalid arg: %s", argv[i]);
-		exit(1);
-	}
+    fprintf(stderr, "invalid arg: %s", argv[i]);
+    exit(1);
+  }
 }
 
 int main(int argc, char const *argv[]) {
@@ -215,30 +200,28 @@ int main(int argc, char const *argv[]) {
   printf("runs per-analysis func: %d\n\n", MAX_FUNC_RUNS);
 
   if (argc)
-	  cmd_args(argc, argv);
+    cmd_args(argc, argv);
 
-  if (program_seed == 0)
-  {
-	  program_seed = static_cast<unsigned>(time(NULL));
-	  srand(program_seed);
+  if (program_seed == 0) {
+    program_seed = static_cast<unsigned>(time(NULL));
+    srand(program_seed);
   }
 
   printf("using seed: %u\n\n", program_seed);
 
-    // Retrieves the frequency of the performance counter. The frequency
-    // of the performance counter is fixed at system boot and is consistent
-    // across all processors. Therefore, the frequency need only be queried
-    // upon application initialization, and the result can be cached.
-    //**though the value is fixed i still keep querying, it works the same!
+  // Retrieves the frequency of the performance counter. The frequency
+  // of the performance counter is fixed at system boot and is consistent
+  // across all processors. Therefore, the frequency need only be queried
+  // upon application initialization, and the result can be cached.
+  //**though the value is fixed i still keep querying, it works the same!
 
-	if (!QueryPerformanceFrequency(&g_system_clock_freq))
-	{
-		fprintf(stderr, "QueryPerformanceFrequency failed!\n");
-		exit(1);
-	}
-	assert(g_system_clock_freq.QuadPart != 0);
+  if (!QueryPerformanceFrequency(&g_system_clock_freq)) {
+    fprintf(stderr, "QueryPerformanceFrequency failed!\n");
+    exit(1);
+  }
+  assert(g_system_clock_freq.QuadPart != 0);
 
-	printf("system clock frequency: %lld\n\n", g_system_clock_freq.QuadPart);
+  printf("clock tick frequency: %lld\n\n", g_system_clock_freq.QuadPart);
 
   // initialise function pointer vars denoting the sequence lengths too!
 
@@ -267,8 +250,8 @@ int main(int argc, char const *argv[]) {
 
     // print the name of the fft function about to run
     printf("run: %s\n", f_iter->first.c_str());
-      // call the fft function we want to analyse
-      f_iter->second();
+    // call the fft function we want to analyse
+    f_iter->second();
   }
 
   save_pdata();
