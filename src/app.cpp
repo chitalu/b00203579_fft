@@ -1,3 +1,13 @@
+// This work is submitted in partial fulfillment of the requirements 
+// for the degree of BSc (Hons) Computer Games Technology in the University 
+// of the West of Scotland.
+//
+// I declare that this work embodies the results of my own work and 
+// that it has been composed by me. Following normal academic conventions, 
+// I have made due acknowledgement to the work of others.
+//
+// Name: FLOYD MULENGA CHITALU
+
 #define _CRT_SECURE_NO_WARNINGS
 
 #include <cassert>
@@ -333,6 +343,7 @@ void cfft(const std::size_t &N) {
   printf(".\n");
 }
 
+// define respective functions 
 DEF_FUNCS_(16); // 2^4
 DEF_FUNCS_(32); // 2^5
 

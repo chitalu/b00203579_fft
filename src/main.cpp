@@ -1,3 +1,13 @@
+// This work is submitted in partial fulfillment of the requirements 
+// for the degree of BSc (Hons) Computer Games Technology in the University 
+// of the West of Scotland.
+//
+// I declare that this work embodies the results of my own work and 
+// that it has been composed by me. Following normal academic conventions, 
+// I have made due acknowledgement to the work of others.
+//
+// Name: FLOYD MULENGA CHITALU
+
 #include <cstdio>
 #include <ctime>
 #include <sstream>
@@ -37,6 +47,8 @@ float rand_2(float lo, float hi) {
              (static_cast<float>(RAND_MAX / (hi - lo)));
 }
 
+// this function simply saves the profiling data that has been
+// generated while the program was running
 void save_pdata(void) {
   using namespace std;
 
@@ -53,6 +65,7 @@ void save_pdata(void) {
     }
   } mean_reduce;
 
+  // anonymous struct used to parse strings for particular values
   struct {
     string num_samples(const string &s) {
       return s.substr(0, s.find_first_of('-'));
@@ -82,7 +95,10 @@ void save_pdata(void) {
     }
   } get_;
 
+  // map containing per file data
   std::map<string, stringstream> file_data;
+
+  // loop for the time stamps per task
   for (ptime_iter_t i = g_tstamps.cbegin(); i != g_tstamps.cend(); ++i) {
     string gname = i->first;
     if (gname.find("crte") != string::npos) {
@@ -109,6 +125,8 @@ void save_pdata(void) {
     file_data[fname] << samples << ", ";
 
     bool found = false;
+	// now we loop for the FLOPS stats report by every FFTw plan used
+	// during execution
     for (op_stats_iter_t i_ = g_op_stats.cbegin(); i_ != g_op_stats.cend();
          ++i_) {
       string gname_ = i_->first;
@@ -120,6 +138,7 @@ void save_pdata(void) {
              gname_.find("fplan") != string::npos) ||
             (transform_dir == "inverse" &&
              gname_.find("iplan") != string::npos)) {
+		  // type "long" is only 4 bytes on windows!!
           file_data[fname] << (long long)i_->second[ADD_OPERATIONS] << ", "
                            << (long long)i_->second[MUL_OPERATIONS] << ", "
                            << (long long)i_->second[FMA_OPERATIONS] << ", ";
@@ -136,6 +155,7 @@ void save_pdata(void) {
     file_data[fname] << time_taken << "\n";
   }
 
+  // write data associated with every file 
   for (std::map<string, stringstream>::iterator i = file_data.begin();
        i != file_data.end(); ++i) {
     ofstream f;
@@ -199,6 +219,7 @@ int main(int argc, char const *argv[]) {
 
   printf("runs per-analysis func: %d\n\n", MAX_FUNC_RUNS);
 
+  //did the user specify any arguments
   if (argc)
     cmd_args(argc, argv);
 

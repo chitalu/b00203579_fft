@@ -1,3 +1,13 @@
+// This work is submitted in partial fulfillment of the requirements 
+// for the degree of BSc (Hons) Computer Games Technology in the University 
+// of the West of Scotland.
+//
+// I declare that this work embodies the results of my own work and 
+// that it has been composed by me. Following normal academic conventions, 
+// I have made due acknowledgement to the work of others.
+//
+// Name: FLOYD MULENGA CHITALU
+
 #ifndef __BASE_H__
 #define __BASE_H__
 
@@ -18,8 +28,17 @@
 // fft in the west!
 #include "fftw3.h"
 
+// please note: function declarations and definitions are 
+// defined using macro expansions. The reason for this is 
+// to allow for automatic generation of the names used to 
+// label all profiling statistics produced by the program 
+// upon execution
+
+// number of runs per number of samples. useful for 
+// calculating a decent set of results.
 #define MAX_FUNC_RUNS (128)
 
+// debugging helper macro
 #define ASSERT_TRUE(cond_, msg_, ...)\
 do{\
 	if(!(cond_)){\
@@ -28,15 +47,22 @@ do{\
 	}\
 }while(false);
 
+// used for comparing floating point values. not as pedantic 
+// as a regular comparison due to precesion error when
+// calculating FFT operations
 #define ASSERT_EQ(arg0, arg1, msg_, ...)\
 	ASSERT_TRUE(fabs(arg0 - arg1) < 0.000001, msg_, ##__VA_ARGS__);
 
 #define IGNORE_IMAGINARY_INPUT (true)
 
+// type used to signify function type
 typedef void (*fft_func_t)(void);
+// storage for all analysis functions
 extern std::map<std::string, fft_func_t> g_fft_funcs;
 
+//profiling time stamps
 extern std::map<std::string, std::list<double>> g_tstamps;
+// interator for time stamps container
 typedef std::map<std::string, std::list<double>>::const_iterator ptime_iter_t;
 extern std::string g_last_profiled_task;
 
@@ -64,6 +90,8 @@ extern std::string g_last_profiled_task;
 extern std::map<std::string, std::vector<double>> g_op_stats;
 typedef std::map<std::string, std::vector<double>>::const_iterator op_stats_iter_t;
 
+// just some integral constants to aid readability when storing 
+// FLOPS associated with plan execution
 #define ADD_OPERATIONS (0)
 #define MUL_OPERATIONS (1)
 #define FMA_OPERATIONS (2)
@@ -77,10 +105,15 @@ typedef std::map<std::string, std::vector<double>>::const_iterator op_stats_iter
 		g_op_stats.insert(std::make_pair(g_last_profiled_task, ops));\
 	}while(false);
 
+// flag determing how much we want FFTw to care about how fast we want the 
+// application to be.
 extern unsigned int g_planner_flag;
 
+// system clock frequency value used for calculating timing values.
 extern LARGE_INTEGER g_system_clock_freq;
 
+// profiling struct, an instance begins the timer
+// the deconstructor stores timing values
 struct cprofile_t {
   cprofile_t(const std::string &desc_in)
       : desc(desc_in) {
@@ -139,10 +172,15 @@ private:
 // end profiling codeblock
 #define STOP_PROFILING() }
 
+// complex number auxilliary macros, helpful for reading and modifying an
+// FFTw complex value as it would look in equation form 
 #define REAL_PART 0
 #define IMAGINARY_PART 1
 #define Im(arg_) arg_[IMAGINARY_PART]
 #define Re(arg_) arg_[REAL_PART]
+
+
+// analysis function declaration macros. 
 
 #define DECL_FUNC_(dtype, dsize) extern "C" void dtype##_fft_op_##dsize(void);
 
